@@ -1,0 +1,72 @@
+;; Baseline clj-kondo config from the `clojure-security` plugin, with this
+;; project's local grandfather: :refer-all excludes speclj.core because the
+;; specs use [speclj.core :refer :all]. The plugin baseline bans :refer :all
+;; outright; that ban stays in force for every other namespace here.
+;;
+;; The per-edit hook lints a SINGLE file with NO classpath/cache analysis, so
+;; the resolution linters stay at clj-kondo defaults and :unresolved-symbol
+;; carries excludes for Speclj / c3kit library macros. The Speclj `with` family
+;; is resolved by the bundled hook (it models the deref-able `@name` binding);
+;; the hook file lives at .clj-kondo/hooks/speclj_with.clj.
+{:hooks
+ {:analyze-call {speclj.core/with      hooks.speclj-with/with-binding
+                 speclj.core/with!     hooks.speclj-with/with-binding
+                 speclj.core/with-all  hooks.speclj-with/with-binding
+                 speclj.core/with-all! hooks.speclj-with/with-binding}}
+
+ :lint-as
+ {;; c3kit's `for-all` is a comprehension macro shaped like `for`.
+  c3kit.apron.corec/for-all clojure.core/for
+  ;; garden's `defstyles` defines the stylesheet var; treat like `def`.
+  garden.def/defstyles      clojure.core/def
+  ;; Speclj `around` / `around-all` take a body fn invoked via its bound symbol
+  ;; (`(around [body] (body))`); treat like `fn` so the binding resolves.
+  speclj.core/around        clojure.core/fn
+  speclj.core/around-all    clojure.core/fn}
+
+ :linters
+ {;; --- security posture: escalate ----------------------------------------
+  ;; Type confusion is a real correctness/security defect — block on it.
+  :type-mismatch      {:level :error}
+  ;; No `:refer :all` — except Speclj, whose `:refer :all` is the canonical
+  ;; test-namespace idiom. The ban stays in force for every other namespace.
+  :refer-all          {:level :error :exclude [speclj.core]}
+  ;; The sloppy code where bugs hide — surface, don't block.
+  :unused-binding     {:level :warning}
+  :shadowed-var       {:level :warning}
+  :unused-private-var {:level :warning}
+
+  ;; --- Speclj / c3kit.wire DSL: symbol-resolution only -------------------
+  ;; These macros are referred but cannot be resolved without jar analysis, so
+  ;; without these excludes every spec file reports unresolved symbols. They are
+  ;; universally-defined library macros (Speclj, c3kit.wire, c3kit.apron.log) —
+  ;; resolution only, no behaviour change. Project-specific symbols do NOT
+  ;; belong here.
+  :unresolved-symbol
+  {:exclude [;; structure
+             describe context it xit
+             before before-all after after-all around around-all
+             with with! with-all with-all!
+             focus-describe focus-context focus-it
+             tags pending
+             ;; assertions
+             should should-not should= should-not= should== should-not==
+             should-be should-not-be should-be-a should-not-be-a
+             should-be-nil should-not-be-nil should-fail
+             should-contain should-not-contain
+             should-start-with should-not-start-with
+             should-end-with should-not-end-with
+             should-throw should-not-throw
+             should-have-invoked should-not-have-invoked
+             should-invoke should-not-invoke
+             should-be-same should-not-be-same
+             should< should<= should> should>=
+             ;; stubs / fixtures
+             stub with-stubs redefs-around -fail -to-s
+             ;; c3kit.apron.log macro
+             capture-logs
+             ;; c3kit.wire test helpers
+             should-be-ajax-ok should-be-ajax-fail
+             should-have-invoked-ajax-get should-have-invoked-ajax-post
+             should-have-invoked-ws
+             should-select should-not-select]}}}

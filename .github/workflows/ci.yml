@@ -1,0 +1,43 @@
+name: Secrets Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          java-version: 21
+          distribution: 'temurin'
+
+      - name: Install Clojure CLI
+        uses: DeLaGuardo/setup-clojure@3fe9b3ae632c6758d0b7757b0838606ef4287b08 # 13.4
+        with:
+          cli: 'latest'
+
+      - name: Cache Clojure Dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/deps.edn') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Run Clojure Tests
+        run: clojure -M:test:spec-ci
+
+  security:
+    uses: cleancoders/github-actions/.github/workflows/security.yml@v1
+    with:
+      src-paths: "src"
+      clj-watson-blocking: true
+      semgrep-blocking: true
